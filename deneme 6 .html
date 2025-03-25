@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>Gelişmiş Fitness Takip Sistemi</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f4f4f4;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      max-width: 800px;
+      margin: auto;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h2 {
+      color: #2c3e50;
+    }
+    input, select, button {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background-color: #27ae60;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #219150;
+    }
+    #compositionResult, #bmrResult {
+      margin-top: 10px;
+      font-weight: bold;
+    }
+    canvas {
+      margin-top: 30px;
+    }
+    #chartAnalysis {
+      margin-top: 10px;
+      font-weight: bold;
+      color: #2d3436;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Vücut Kompozisyonu Hesapla</h2>
+    <select id="gender">
+      <option value="male">Erkek</option>
+      <option value="female">Kadın</option>
+    </select>
+    <input type="number" id="height" placeholder="Boy (cm)">
+    <input type="number" id="weight" placeholder="Kilo (kg)">
+    <input type="number" id="age" placeholder="Yaş">
+    <input type="number" id="waist" placeholder="Bel Çevresi (cm)">
+    <input type="number" id="hip" placeholder="Kalça Çevresi (cm)">
+    <input type="number" id="neck" placeholder="Boyun Çevresi (cm)">
+    <input type="number" id="shoulder" placeholder="Omuz Çevresi (cm)">
+    <input type="number" id="chest" placeholder="Göğüs Çevresi (cm)">
+    <input type="number" id="arm" placeholder="Kol Çevresi (cm)">
+    <input type="number" id="leg" placeholder="Bacak Çevresi (cm)">
+    <select id="activity">
+      <option value="1.2">Hareketsiz</option>
+      <option value="1.375">Az Aktif</option>
+      <option value="1.55">Aktif</option>
+      <option value="1.725">Çok Aktif</option>
+    </select>
+    <button onclick="calculateComposition()">HESAPLA</button>
+    <p id="compositionResult"></p>
+    <p id="bmrResult"></p>
+
+    <hr>
+
+    <h2>PR Takip</h2>
+    <input type="text" id="exercise" placeholder="Egzersiz Adı">
+    <input type="number" id="prWeight" placeholder="Ağırlık (kg)">
+    <input type="number" id="reps" placeholder="Tekrar">
+    <input type="number" id="sets" placeholder="Set Sayısı">
+    <button onclick="savePR()">KAYDET</button>
+    <ul id="prList"></ul>
+    <canvas id="prChart"></canvas>
+    <div id="chartAnalysis"></div>
+
+    <hr>
+
+    <h2>Antrenman Planlayıcı</h2>
+    <select id="muscleGroup" onchange="generateWorkout()">
+      <option value="">Kas Bölgesi Seç</option>
+      <option value="gogus">Göğüs</option>
+      <option value="sirt">Sırt</option>
+      <option value="omuz">Omuz</option>
+      <option value="biceps">Biceps</option>
+      <option value="triceps">Triceps</option>
+      <option value="bacak">Bacak</option>
+      <option value="karin">Karın</option>
+    </select>
+    <select id="workoutLevel" onchange="generateWorkout()">
+      <option value="">Seviye Seç</option>
+      <option value="hafif">Hafif (3x15)</option>
+      <option value="orta">Orta (4x10-12)</option>
+      <option value="pro">Profesyonel (5x6-10)</option>
+      <option value="karma">Karma (3-5 set aralığı)</option>
+    </select>
+    <ul id="workoutPlan"></ul>
+    <hr>
+<button style="background-color: #c0392b;" onclick="resetApp()">Verileri Sıfırla (Yeni Kullanıcı)</button>
+ </div>
+
+  <script>
+    const prList = JSON.parse(localStorage.getItem('prData') || '[]');
+    const prListEl = document.getElementById("prList");
+    const chartCtx = document.getElementById("prChart").getContext("2d");
+    const chartAnalysisEl = document.getElementById("chartAnalysis");
+    let chart;
+
+    const muscleExercises = {
+      gogus: ["Bench Press", "Incline Dumbbell Press", "Chest Fly", "Cable Crossover", "Push-Ups", "Decline Press", "Machine Press", "Dips", "Squeeze Press", "Smith Machine Press"],
+      sirt: ["Pull-Up", "Lat Pulldown", "Barbell Row", "T-Bar Row", "Seated Row", "Deadlift", "Dumbbell Row", "Face Pull", "Straight Arm Pulldown", "Chin-Up"],
+      omuz: ["Shoulder Press", "Lateral Raise", "Front Raise", "Rear Delt Fly", "Arnold Press", "Cable Lateral Raise", "Upright Row", "Dumbbell Press", "Face Pull", "Machine Shoulder Press"],
+      biceps: ["Barbell Curl", "Dumbbell Curl", "Hammer Curl", "Preacher Curl", "Concentration Curl", "Cable Curl", "Zottman Curl", "Incline Curl", "Reverse Curl", "EZ Bar Curl"],
+      triceps: ["Skullcrusher", "Triceps Pushdown", "Overhead Extension", "Dips", "Close-Grip Bench", "Kickbacks", "Rope Extension", "One Arm Pushdown", "Diamond Push-Up", "Machine Triceps Press"],
+      bacak: ["Squat", "Leg Press", "Lunges", "Leg Curl", "Leg Extension", "Bulgarian Split Squat", "Romanian Deadlift", "Glute Bridge", "Calf Raise", "Hack Squat"],
+      karin: ["Crunch", "Plank", "Leg Raise", "Bicycle Crunch", "Russian Twist", "Hanging Leg Raise", "Cable Crunch", "Mountain Climber", "Ab Wheel Rollout", "Toe Touch"]
+    };
+
+    function calculateComposition() {
+      const weight = parseFloat(document.getElementById("weight").value);
+      const height = parseFloat(document.getElementById("height").value);
+      const waist = parseFloat(document.getElementById("waist").value);
+      const neck = parseFloat(document.getElementById("neck").value);
+      const hip = parseFloat(document.getElementById("hip").value);
+      const gender = document.getElementById("gender").value;
+      const age = parseFloat(document.getElementById("age").value);
+      const activity = parseFloat(document.getElementById("activity").value);
+
+      const bmi = (weight / ((height / 100) ** 2)).toFixed(1);
+      let fat = 0;
+
+      if (gender === "male") {
+        fat = 495 / (1.0324 - 0.19077 * Math.log10(waist - neck) + 0.15456 * Math.log10(height)) - 450;
+      } else {
+        fat = 495 / (1.29579 - 0.35004 * Math.log10(waist + hip - neck) + 0.221 * Math.log10(height)) - 450;
+      }
+
+      fat = fat.toFixed(1);
+
+      const bmr = gender === "male"
+        ? 10 * weight + 6.25 * height - 5 * age + 5
+        : 10 * weight + 6.25 * height - 5 * age - 161;
+      const tdee = Math.round(bmr * activity);
+
+      document.getElementById("compositionResult").innerText = `BMI: ${bmi} | Vücut Yağ Oranı: %${fat}`;
+      document.getElementById("bmrResult").innerText = `Günlük Kalori İhtiyacı (TDEE): ${tdee} kcal`;
+    }
+
+    function savePR() {
+      const name = document.getElementById("exercise").value;
+      const weight = parseFloat(document.getElementById("prWeight").value);
+      const reps = parseInt(document.getElementById("reps").value);
+      const sets = parseInt(document.getElementById("sets").value);
+      const date = new Date().toLocaleDateString();
+
+      if (!name || !weight || !reps || !sets) return;
+
+      const entry = { name, weight, reps, sets, date };
+      prList.push(entry);
+      localStorage.setItem("prData", JSON.stringify(prList));
+
+      renderPRList();
+      renderChart();
+
+      document.getElementById("exercise").value = "";
+      document.getElementById("prWeight").value = "";
+      document.getElementById("reps").value = "";
+      document.getElementById("sets").value = "";
+    }
+
+    function renderPRList() {
+      prListEl.innerHTML = "";
+      prList.forEach(pr => {
+        const li = document.createElement("li");
+        li.textContent = `${pr.date} - ${pr.name} | ${pr.sets}x${pr.reps} @ ${pr.weight}kg`;
+        prListEl.appendChild(li);
+      });
+    }
+
+    function renderChart() {
+      const labels = prList.map(pr => `${pr.date} (${pr.name})`);
+      const weights = prList.map(pr => pr.weight);
+      const avg = (weights.reduce((a,b) => a+b, 0) / weights.length).toFixed(1);
+      const max = Math.max(...weights);
+
+      if (chart) chart.destroy();
+
+      chart = new Chart(chartCtx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Ağırlık (kg)',
+            data: weights,
+            borderColor: '#e67e22',
+            backgroundColor: 'rgba(230, 126, 34, 0.2)',
+            borderWidth: 3,
+            fill: true,
+            tension: 0.4,
+            pointBackgroundColor: '#d35400',
+            pointRadius: 5
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: true },
+          },
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+
+      chartAnalysisEl.innerText = `Ortalama Ağırlık: ${avg} kg | En Yüksek PR: ${max} kg`;
+    }
+
+    function generateWorkout() {
+      const group = document.getElementById("muscleGroup").value;
+      const level = document.getElementById("workoutLevel").value;
+      const planList = document.getElementById("workoutPlan");
+
+      if (!group || !level) return;
+
+      const moves = muscleExercises[group];
+      let moveCount = level === "hafif" ? 4 : level === "orta" ? 6 : level === "pro" ? 8 : 6;
+      let setRep = level === "hafif" ? "3x15" : level === "orta" ? "4x10-12" : level === "pro" ? "5x6-10" : "3-5 set / 6-15 tekrar";
+
+      planList.innerHTML = "";
+      for (let i = 0; i < moveCount; i++) {
+        const li = document.createElement("li");
+        li.textContent = `${moves[i]} - ${setRep}`;
+        planList.appendChild(li);
+      }
+    }
+
+    renderPRList();
+    renderChart();
+  </script>
+  <script>
+    function resetApp() {
+      if (confirm("Tüm verileri silmek ve baştan başlamak istediğinize emin misiniz?")) {
+        localStorage.clear();
+        location.reload();
+      }
+    }
+  </script>
+  
+</body>
+</html>
